@@ -1,0 +1,9 @@
+<bindings xmlns="https://jakarta.ee/xml/ns/jaxb"
+          xmlns:xjc="http://java.sun.com/xml/ns/jaxb/xjc"
+          version="3.0"
+          extensionBindingPrefixes="xjc">
+    <globalBindings>
+        <!-- Ensure no additional constructors are generated -->
+        <xjc:noGeneratedConstructor>true</xjc:noGeneratedConstructor>
+    </globalBindings>
+</bindings>

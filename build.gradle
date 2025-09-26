@@ -2,170 +2,79 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.3.4'
     id 'io.spring.dependency-management' version '1.1.6'
+    id 'com.github.bjornvester.wsdl2java' version '2.0.2'
 }
 
 group = 'com.example'
 version = '1.0.0-SNAPSHOT'
-java.sourceCompatibility = JavaVersion.VERSION_17
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
 
 repositories {
     mavenCentral()
+    // Fallback repo for safety
+    maven { url 'https://repo1.maven.org/maven2/' }
+}
+
+configurations {
+    xjcPlugins
+    all {
+        exclude group: 'javax.xml.bind'
+        exclude group: 'com.sun.xml.bind'
+    }
 }
 
 dependencies {
+    // Spring Boot dependencies
     implementation 'org.springframework.boot:spring-boot-starter-web'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
+    // Lombok for boilerplate code reduction
+    compileOnly 'org.projectlombok:lombok:1.18.34'
+    annotationProcessor 'org.projectlombok:lombok:1.18.34'
+    testCompileOnly 'org.projectlombok:lombok:1.18.34'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.34'
 
-    // JAXB और SOAP dependencies
-    implementation 'jakarta.xml.bind:jakarta.xml.bind-api:4.0.4'
-    implementation 'org.glassfish.jaxb:jaxb-runtime:4.0.4'
+    // Jakarta JAXB and SOAP dependencies
+    implementation 'jakarta.xml.bind:jakarta.xml.bind-api:4.0.2'
+    implementation 'org.glassfish.jaxb:jaxb-runtime:4.0.5'
     implementation 'jakarta.xml.soap:jakarta.xml.soap-api:3.0.2'
-    implementation 'jakarta.xml.ws:jakarta.xml.ws-api:3.0.1'
+    implementation 'jakarta.xml.ws:jakarta.xml.ws-api:4.0.2'
 
-    // CXF dependencies
-    implementation 'org.apache.cxf:cxf-rt-frontend-jaxws:4.0.3'
-    implementation 'org.apache.cxf:cxf-rt-transports-http:4.0.3'
-}
-
-// Configuration for CXF tools
-configurations {
-    cxfTools
-}
-
-dependencies {
-    // CXF tools for WSDL2Java
-    cxfTools 'org.apache.cxf:cxf-tools-wsdlto-core:4.0.3'
-    cxfTools 'org.apache.cxf:cxf-tools-wsdlto-frontend-jaxws:4.0.3'
-    cxfTools 'org.apache.cxf:cxf-tools-wsdlto-databinding-jaxb:4.0.3'
-    cxfTools 'org.apache.cxf:cxf-rt-frontend-jaxws:4.0.3'
-    cxfTools 'org.apache.cxf:cxf-rt-transports-http:4.0.3'
-    cxfTools 'jakarta.xml.bind:jakarta.xml.bind-api:4.0.4'
-    cxfTools 'org.glassfish.jaxb:jaxb-runtime:4.0.4'
-}
-
-// Direct WSDL2Java task - Gradle 8.13 compatible
-task wsdl2java {
-    group = 'code generation'
-    description = 'Generate Java classes from WSDL'
-
-    def wsdlFile = file('src/main/resources/wsdl/customerService.wsdl')
-    def outputDir = file("${project.buildDir}/generated-sources/wsdl2java")
-
-    inputs.file wsdlFile
-    outputs.dir outputDir
-
-    doFirst {
-        outputDir.deleteDir()
-        outputDir.mkdirs()
+    // Apache CXF dependencies
+    implementation('org.apache.cxf:cxf-rt-frontend-jaxws:4.0.4') {
+        exclude group: 'javax.xml.bind'
+        exclude group: 'com.sun.xml.bind'
     }
+    implementation 'org.apache.cxf:cxf-rt-transports-http:4.0.4'
 
-    doLast {
-        println "🚀 Generating classes from WSDL..."
+    // JAXB plugins bundle for XJC (Jakarta compatible, includes value-constructor)
+    xjcPlugins 'org.jvnet.jaxb:jaxb-plugins:4.0.8'
+    // Runtime dependency for generated code (for toString, equals, etc.)
+    implementation 'org.jvnet.jaxb:jaxb-plugins-runtime:4.0.8'
+}
 
-        javaexec {
-            classpath = configurations.cxfTools
-            mainClass = 'org.apache.cxf.tools.wsdlto.WSDLToJava'
+wsdl2java {
+    wsdlDir = file('src/main/resources/wsdl')
+    generatedSourceDir = file('build/generated-sources/wsdl2java')
 
-            args = [
+    includesWithOptions = [
+            'customerService.wsdl': [
+                    '-p', 'com.example.generated.ws',
                     '-verbose',
                     '-client',
                     '-server',
-                    '-impl',
-                    '-d', outputDir.absolutePath,
-                    '-p', 'com.example.generated.ws',
-                    '-autoNameResolution',
-                    wsdlFile.absolutePath
+                    '-impl'
             ]
-        }
+    ]
 
-        println "✅ WSDL2Java generation completed!"
-    }
+    cxfVersion = '4.0.4'
+    // Global XJC options for all WSDLs
+    options = ['-xjc-Xvalue-constructor', '-xjc-XtoString', '-xjc-Xequals', '-xjc-XhashCode']
 }
 
-task addDefaultConstructors {
-    dependsOn wsdl2java
-    group = 'code generation'
-    description = 'Add default constructors to generated classes'
-
-    def outputDir = file("${project.buildDir}/generated-sources/wsdl2java")
-
-    inputs.dir outputDir
-    outputs.dir outputDir
-
-    doLast {
-        println "🔧 Adding default constructors..."
-
-        outputDir.traverse(type: groovy.io.FileType.FILES, nameFilter: ~/.*\.java$/) { javaFile ->
-            String content = javaFile.text
-            String className = javaFile.name.replace('.java', '')
-
-            // Check if it's a concrete class and doesn't have default constructor
-            if (content.contains("public class ${className}") &&
-                    !content.contains("public ${className}()") &&
-                    !content.contains("interface ${className}") &&
-                    !content.contains("abstract class ${className}")) {
-
-                println "  ➕ Adding default constructor to: ${className}"
-
-                // Create default constructor
-                String defaultConstructor = """
-    /**
-     * Default constructor for ${className}
-     */
-    public ${className}() {
-        super();
-    }
-"""
-
-                // Find the position after class declaration opening brace
-                String classPattern = "(public class ${className}[^\\{]*\\{)"
-                content = content.replaceFirst(classPattern, "\$1${defaultConstructor}")
-
-                // Write back the modified content
-                javaFile.text = content
-            }
-        }
-
-        println "✅ Default constructors added successfully!"
-
-        // List generated classes with constructors
-        outputDir.traverse(type: groovy.io.FileType.FILES, nameFilter: ~/.*\.java$/) { javaFile ->
-            String className = javaFile.name.replace('.java', '')
-            if (javaFile.text.contains("public ${className}()")) {
-                println "  ✓ ${className} - has default constructor"
-            }
-        }
-    }
-}
-
-sourceSets {
-    main {
-        java {
-            srcDir "${project.buildDir}/generated-sources/wsdl2java"
-        }
-    }
-}
-
-// Ensure proper task dependencies for Gradle 8.13
-tasks.named('compileJava') {
-    dependsOn addDefaultConstructors
-}
-
-tasks.named('processResources') {
-    dependsOn addDefaultConstructors
-}
-
-// Ensure generation runs during build
-tasks.named('build') {
-    dependsOn addDefaultConstructors
-}
-
-// Clean generated sources
-tasks.named('clean') {
-    doLast {
-        file("${project.buildDir}/generated-sources").deleteDir()
-    }
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
 }
