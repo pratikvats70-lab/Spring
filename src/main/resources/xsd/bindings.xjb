@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jaxb:bindings xmlns:jaxb="https://jakarta.ee/xml/ns/jaxb"
+               xmlns:xs="http://www.w3.org/2001/XMLSchema"
+               version="3.0">
+
+    <!-- Global bindings -->
+    <jaxb:globalBindings>
+        <!-- Make classes serializable -->
+        <jaxb:serializable/>
+        <!-- Generate element classes -->
+        <jaxb:property generateElementClass="true"/>
+    </jaxb:globalBindings>
+
+    <!-- Bindings for data.xsd -->
+    <jaxb:bindings schemaLocation="data.xsd" node="/xs:schema">
+        <jaxb:schemaBindings>
+            <jaxb:package name="com.example.generated.model"/>
+        </jaxb:schemaBindings>
+        
+        <!-- ItemType binding -->
+        <jaxb:bindings node="//xs:complexType[@name='ItemType']">
+            <jaxb:class name="ItemType">
+                <jaxb:javadoc>Item type with default constructor and XML parsing support</jaxb:javadoc>
+            </jaxb:class>
+        </jaxb:bindings>
+    </jaxb:bindings>
+
+</jaxb:bindings>

@@ -1,0 +1,233 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.4'
+    id 'io.spring.dependency-management' version '1.1.4'
+    id 'io.mateo.cxf-codegen' version '2.2.0'
+}
+
+group = 'com.example'
+version = '1.0.0-SNAPSHOT'
+sourceCompatibility = '23'
+
+repositories {
+    mavenCentral()
+    // Shibboleth repository for OpenSAML dependencies
+    maven {
+        url 'https://build.shibboleth.net/nexus/content/repositories/releases/'
+    }
+}
+
+// Handle duplicate JARs in Spring Boot fat JAR
+jar {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+bootJar {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+dependencies {
+    // Spring Boot starters
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    // XML/JAXB dependencies
+    implementation 'jakarta.xml.bind:jakarta.xml.bind-api:4.0.4'
+    implementation 'org.glassfish.jaxb:jaxb-runtime:4.0.4'
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.19.2'
+
+    // SOAP/Web Services
+    implementation 'jakarta.xml.soap:jakarta.xml.soap-api:3.0.2'
+    implementation 'jakarta.xml.ws:jakarta.xml.ws-api:3.0.1'
+
+    // CXF for WSDL2Java (without WS-Security if not needed)
+    implementation 'org.apache.cxf:cxf-rt-frontend-jaxws:4.0.3'
+    implementation 'org.apache.cxf:cxf-rt-transports-http:4.0.3'
+    // implementation 'org.apache.cxf:cxf-rt-ws-security:4.0.3'  // Comment out if not needed
+
+    // OpenSAML dependencies (if needed for WS-Security)
+    implementation 'org.opensaml:opensaml-core:4.3.0'
+    implementation 'org.opensaml:opensaml-saml-api:4.3.0'
+    implementation 'org.opensaml:opensaml-saml-impl:4.3.0'
+    implementation 'org.opensaml:opensaml-xmlsec-api:4.3.0'
+    implementation 'org.opensaml:opensaml-xmlsec-impl:4.3.0'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // OpenAPI/Swagger
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
+}
+
+// CXF Code Generation Configuration - Correct syntax for version 2.2.0+
+cxfCodegen {
+    cxfVersion = "4.0.3"
+}
+
+// Import the Wsdl2Java task type
+import io.mateo.cxf.codegen.wsdl2java.Wsdl2Java
+
+// Create WSDL2Java task for customer service
+tasks.register("customerService", Wsdl2Java) {
+    toolOptions {
+        wsdl = file('src/main/resources/wsdl/customerService.wsdl').toPath().toAbsolutePath().toString()
+        packageNames = ['com.example.generated.ws']
+        bindingFiles = [file('src/main/resources/xsd/bindings.xjb').absolutePath]
+        extraArgs = [
+                '-verbose',
+                '-autoNameResolution',
+                '-client',
+                '-server',
+                '-impl'
+        ]
+        // No XJC extensions - JAXB automatically provides default constructors
+        xjcArgs = []
+    }
+}
+
+// XJC Configuration for XSD files
+configurations {
+    xjc
+}
+
+dependencies {
+    // XJC dependencies - keep it simple
+    xjc 'org.glassfish.jaxb:jaxb-xjc:4.0.4'
+    xjc 'org.glassfish.jaxb:jaxb-runtime:4.0.4'
+    xjc 'jakarta.xml.bind:jakarta.xml.bind-api:4.0.4'
+}
+
+// Task to generate classes from XSD schemas
+task generateDataClasses {
+    def outputDir = file("$buildDir/generated-sources/data")
+    def xsdFile = file('src/main/resources/xsd/data.xsd')
+
+    inputs.file xsdFile
+    outputs.dir outputDir
+
+    doLast {
+        outputDir.mkdirs()
+
+        javaexec {
+            classpath = configurations.xjc
+            mainClass = 'com.sun.tools.xjc.Driver'
+            args = [
+                    '-d', outputDir.absolutePath,
+                    '-p', 'com.example.generated.model',
+                    '-extension',
+                    xsdFile.absolutePath
+            ]
+        }
+    }
+}
+
+// Task to generate customer classes
+task generateCustomerClasses {
+    def outputDir = file("$buildDir/generated-sources/customer")
+    def xsdFile = file('src/main/resources/xsd/customer.xsd')
+
+    inputs.file xsdFile
+    outputs.dir outputDir
+
+    doLast {
+        outputDir.mkdirs()
+
+        javaexec {
+            classpath = configurations.xjc
+            mainClass = 'com.sun.tools.xjc.Driver'
+            args = [
+                    '-d', outputDir.absolutePath,
+                    '-p', 'com.example.generated.customer',
+                    '-extension',
+                    xsdFile.absolutePath
+            ]
+        }
+    }
+}
+
+// Task to generate DTO classes
+task generateDtoClasses {
+    def outputDir = file("$buildDir/generated-sources/dto")
+    def baseDto = file('src/main/resources/xsd/base-dto.xsd')
+    def orderDto = file('src/main/resources/xsd/order-dto.xsd')
+    def customerDto = file('src/main/resources/xsd/customer-dto.xsd')
+
+    inputs.files baseDto, orderDto, customerDto
+    outputs.dir outputDir
+
+    doLast {
+        outputDir.mkdirs()
+
+        // Generate base DTO
+        if (baseDto.exists()) {
+            javaexec {
+                classpath = configurations.xjc
+                mainClass = 'com.sun.tools.xjc.Driver'
+                args = [
+                        '-d', outputDir.absolutePath,
+                        '-p', 'com.example.generated.dto.base',
+                        baseDto.absolutePath
+                ]
+            }
+        }
+
+        // Generate order DTO
+        if (orderDto.exists()) {
+            javaexec {
+                classpath = configurations.xjc
+                mainClass = 'com.sun.tools.xjc.Driver'
+                args = [
+                        '-d', outputDir.absolutePath,
+                        '-p', 'com.example.generated.dto.order',
+                        orderDto.absolutePath
+                ]
+            }
+        }
+
+        // Generate customer DTO
+        if (customerDto.exists()) {
+            javaexec {
+                classpath = configurations.xjc
+                mainClass = 'com.sun.tools.xjc.Driver'
+                args = [
+                        '-d', outputDir.absolutePath,
+                        '-p', 'com.example.generated.dto.customer',
+                        customerDto.absolutePath
+                ]
+            }
+        }
+    }
+}
+
+// Combined generation task
+task generateSources {
+    dependsOn customerService, generateDataClasses, generateCustomerClasses, generateDtoClasses
+
+    doLast {
+        println "Code generation completed!"
+        println "WSDL classes: $buildDir/generated-sources/wsdl2java"
+        println "Data classes: $buildDir/generated-sources/data"
+        println "Customer classes: $buildDir/generated-sources/customer"
+        println "DTO classes: $buildDir/generated-sources/dto"
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir "$buildDir/generated-sources/wsdl2java"
+            srcDir "$buildDir/generated-sources/data"
+            srcDir "$buildDir/generated-sources/customer"
+            srcDir "$buildDir/generated-sources/dto"
+        }
+    }
+}
+
+// Ensure sources are generated before compilation
+compileJava.dependsOn generateSources
+
+// Clean generated sources
+clean {
+    delete "$buildDir/generated-sources"
+}
