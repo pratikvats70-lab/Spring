@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="http://example.com/dto/customer"
+           xmlns:tns="http://example.com/dto/customer"
+           xmlns:base="http://example.com/dto/base"
+           elementFormDefault="qualified">
+
+    <xs:import namespace="http://example.com/dto/base" schemaLocation="base-dto.xsd"/>
+
+    <xs:complexType name="CustomerDto">
+        <xs:complexContent>
+            <xs:extension base="base:BaseDto">
+                <xs:sequence>
+                    <xs:element name="email" type="xs:string"/>
+                    <xs:element name="phone" type="xs:string"/>
+                    <xs:element name="address" type="tns:AddressType"/>
+                    <xs:element name="customerType" type="tns:CustomerType"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+
+    <xs:complexType name="AddressType">
+        <xs:sequence>
+            <xs:element name="street" type="xs:string"/>
+            <xs:element name="city" type="xs:string"/>
+            <xs:element name="country" type="xs:string"/>
+            <xs:element name="postalCode" type="xs:string"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:simpleType name="CustomerType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="REGULAR"/>
+            <xs:enumeration value="PREMIUM"/>
+            <xs:enumeration value="VIP"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+</xs:schema>

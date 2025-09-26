@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="http://example.com/dto/order"
+           xmlns:tns="http://example.com/dto/order"
+           xmlns:base="http://example.com/dto/base"
+           elementFormDefault="qualified">
+
+    <xs:import namespace="http://example.com/dto/base" schemaLocation="base-dto.xsd"/>
+
+    <xs:complexType name="OrderDto">
+        <xs:complexContent>
+            <xs:extension base="base:BaseDto">
+                <xs:sequence>
+                    <xs:element name="orderNumber" type="xs:string"/>
+                    <xs:element name="totalAmount" type="xs:decimal"/>
+                    <xs:element name="orderDate" type="xs:dateTime"/>
+                    <xs:element name="status" type="tns:OrderStatus"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+
+    <xs:simpleType name="OrderStatus">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="NEW"/>
+            <xs:enumeration value="PROCESSING"/>
+            <xs:enumeration value="COMPLETED"/>
+            <xs:enumeration value="CANCELLED"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+</xs:schema>
